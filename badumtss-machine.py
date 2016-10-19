@@ -43,8 +43,8 @@ from evdev.ecodes import EV_KEY
 logger = logging.getLogger()
 
 class JackPlayer(object):
-    def __init__(self, target_ports_re=None, stopper=None):
-        self._stopper = stopper
+    def __init__(self, target_ports_re=None, loop=None):
+        self._loop = loop
         if isinstance(target_ports_re, str):
             self._target_ports_re = re.compile(target_ports_re)
         else:
@@ -90,8 +90,7 @@ class JackPlayer(object):
 
     def _shutdown(self, status, reason):
         self._logger.info("Jack is shutting down: %s, %s", status, reason)
-        if self._stopper:
-            self._stopper()
+        self._loop.call_soon_threadsafe(self._loop.stop)
 
     def _port_registration(self, port, register):
         self._logger.info("port %s: %r",
@@ -104,7 +103,7 @@ class JackPlayer(object):
         match = self._target_ports_re.match(port.name)
         if match:
             self._logger.info("Connecting to %r", port.name)
-            self._port.connect(port)
+            self._loop.call_soon_threadsafe(self._port.connect, port)
 
     def _port_rename(self, port, old, new):
         self._logger.info("port renamed: %r '%s' -> '%s'",
@@ -232,9 +231,7 @@ def main():
     devices = [evdev.InputDevice(fn) for fn in evdev.list_devices()]
     devices = [dev for dev in devices if input_device_re.match(dev.name)]
     loop = asyncio.get_event_loop()
-    def stop_loop():
-        loop.call_soon_threadsafe(loop.stop)
-    player = JackPlayer(config["general"]["jack_connect"], stop_loop)
+    player = JackPlayer(config["general"]["jack_connect"], loop)
     dev_handlers = []
     for device in devices:
         handler = InputDeviceHandler(config, device, player)
