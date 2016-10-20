@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 # Copyright (c) 2016, Jacek Konieczny
 # All rights reserved.
 #
@@ -25,54 +23,17 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-import logging
-import asyncio
-import sys
+"""Input device interface."""
 
-from configparser import ConfigParser, ExtendedInterpolation
-
-from .players import player_factory
-from .input import input_devices_generator
-
-logger = logging.getLogger()
-
-INTRO_NOTES = [38, 38, 0, 49]
-
-async def play_intro(player):
-    for note in INTRO_NOTES:
-        sys.stdout.flush()
-        if note:
-            player.note_on(10, note, 127)
-        await asyncio.sleep(0.2)
-
-def main():
-    logging.basicConfig(level=logging.DEBUG)
-    config = ConfigParser(interpolation=ExtendedInterpolation())
-    config['DEFAULT'] = {
-                         "input_device": ".*",
-                         }
-    config.read("badumtss.conf")
-
-    loop = asyncio.get_event_loop()
-
-    player = player_factory(config, loop)
-    if not player:
-        logger.error("No MIDI player available.")
-        return
-
-    input_devices = list(input_devices_generator(config, loop, player))
-
-    player.open()
-    try:
-        loop.run_until_complete(play_intro(player))
-        if not input_devices:
-            logger.error("No input device found, exiting")
-            return
-        for input_device in input_devices:
-            asyncio.ensure_future(input_device.handle_events())
-        loop.run_forever()
-    finally:
-        player.close()
-
-if __name__ == "__main__":
-    main()
+def input_devices_generator(config, loop, player):
+    """Create input device handlers from configuration, yield created objects.
+    """
+    for section in config:
+        if section.startswith("evdev:"):
+            try:
+                from .evdev import event_device_factory
+            except ImportError as err:
+                logger.warning("[%s]: cannot load event device handler: %s",
+                               section, err)
+                continue
+            yield from event_device_factory(config, section, loop, player)
