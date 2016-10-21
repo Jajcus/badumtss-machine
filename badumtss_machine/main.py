@@ -25,8 +25,11 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-import logging
+import argparse
 import asyncio
+import logging
+import logging.config
+import os
 import signal
 import sys
 
@@ -36,6 +39,9 @@ from .players import player_factory
 from .input import input_devices_generator
 
 logger = logging.getLogger()
+
+DEFAULT_LOGGING_CONFIG = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "logging.conf"))
 
 INTRO_NOTES = [38, 38, 0, 49]
 
@@ -52,8 +58,28 @@ def setup_signals(loop):
     signal.signal(signal.SIGINT, handler)
     signal.signal(signal.SIGTERM, handler)
 
+def command_args():
+    parser = argparse.ArgumentParser(
+            description="Play MIDI notes with any input device",
+            )
+    parser.add_argument("--debug", dest="log_level", action="store_const",
+                        const=logging.DEBUG,
+                        help="Show debugging messages")
+    parser.add_argument("--quiet", dest="log_level", action="store_const",
+                        const=logging.ERROR,
+                        help="Show only error messages")
+    parser.add_argument("--logging-config", metavar="FILENAME", nargs=1,
+                        default=DEFAULT_LOGGING_CONFIG,
+                        help="Alternative logging configuration")
+    args = parser.parse_args()
+    logging.config.fileConfig(args.logging_config,
+                              disable_existing_loggers=False)
+    if args.log_level is not None:
+        logging.getLogger().setLevel(args.log_level)
+    return args
+
 def main():
-    logging.basicConfig(level=logging.DEBUG)
+    command_args()
     config = ConfigParser(interpolation=ExtendedInterpolation())
     config['DEFAULT'] = {
                          "input_device": ".*",
