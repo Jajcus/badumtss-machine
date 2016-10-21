@@ -45,19 +45,18 @@ class JackPlayer(RawMidiPlayer):
     """
     def __init__(self, config, section, main_loop):
         super().__init__(config, section, main_loop)
-        try:
-            target_ports_re = config[section]["connect"]
-        except KeyError:
-            target_ports_re = ".*"
+        target_ports_re = config[section].get("connect", ".*")
         if target_ports_re:
             self._target_ports_re = re.compile(target_ports_re)
         else:
             self._target_ports_re = None
+        start_server = config[section].getboolean("start_server", False)
         self._active = 0
         self._queue = Queue()
         jack.set_error_function(partial(jack_logger.error, "%s"))
         jack.set_info_function(partial(jack_logger.info, "%s"))
-        self._client = jack.Client("Badum-tss machine")
+        self._client = jack.Client("Badum-tss machine",
+                                   no_start_server=not start_server)
         self._client.set_shutdown_callback(self._shutdown)
         self._client.set_port_registration_callback(self._port_registration)
         self._client.set_port_rename_callback(self._port_rename)

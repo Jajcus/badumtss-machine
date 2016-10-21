@@ -25,6 +25,10 @@
 
 """MIDI player implementations."""
 
+import logging
+
+logger = logging.getLogger("players")
+
 def player_factory(config, loop):
     """Create MIDI players from configuration, return the first one successfuly
     created.
@@ -45,5 +49,19 @@ def player_factory(config, loop):
                 logger.debug("Exception:", exc_info=True)
                 continue
             return player
+        if section.startswith("fluidsynth:"):
+            try:
+                from .fluidsynth import FluidSynthPlayer
+            except ImportError as err:
+                logger.warning("[%s]: cannot load FluidSynth player: %s",
+                               section, err)
+                continue
+            try:
+                player = FluidSynthPlayer(config, section, loop)
+            except Exception as err:
+                logger.warning("[%s]: cannot load FluidSynth player: %s",
+                               section, err)
+                logger.debug("Exception:", exc_info=True)
+                continue
+            return player
     return None
-

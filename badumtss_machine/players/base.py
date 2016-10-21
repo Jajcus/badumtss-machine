@@ -25,6 +25,9 @@
 
 """Common MIDI player code."""
 
+class PlayerError(Exception):
+    """Raised on generic player error, e.g. when not available."""
+
 class Player(object):
     """Base class for all MIDI players."""
     def __init__(self, config, section, main_loop):
