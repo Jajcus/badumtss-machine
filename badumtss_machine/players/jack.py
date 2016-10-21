@@ -65,7 +65,7 @@ class JackPlayer(RawMidiPlayer):
         self._client.set_process_callback(self._process)
         self._port = None
 
-    def open(self):
+    def start(self):
         """Activate the Jack client and connect to the target ports."""
         if not self._active:
             self._client.activate()
@@ -73,7 +73,7 @@ class JackPlayer(RawMidiPlayer):
             self._connect_ports()
         self._active += 1
 
-    def close(self):
+    def stop(self):
         """Deactivate the Jack client and disconnect from the server."""
         self._active -= 1
         if self._active < 0:

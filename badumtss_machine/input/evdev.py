@@ -27,6 +27,7 @@ import time
 import logging
 import re
 import math
+import asyncio
 
 import evdev
 from evdev.ecodes import EV_KEY, EV_ABS
@@ -137,6 +138,7 @@ class AbsEventHandler(EventHandler):
 
 class EventDevice(BaseInputDevice):
     def __init__(self, config, section, main_loop, player, device):
+        self._task = None
         BaseInputDevice.__init__(self, config, section, main_loop, player)
         self.device = device
         self._event_map = {}
@@ -171,6 +173,24 @@ class EventDevice(BaseInputDevice):
             settings.update(self.config[section])
             handler = handler_class(self, key, settings, self.player)
             self._event_map[key] = handler
+
+    def start(self):
+        """Start processing events."""
+        self._task = self.main_loop.create_task(self.handle_events())
+
+    def stop(self):
+        """Stop processing events."""
+        if self._task is None:
+            return
+        try:
+            self.device.close()
+            self._task.cancel()
+            try:
+                self.main_loop.run_until_complete(self._task)
+            except asyncio.CancelledError:
+                pass
+        finally:
+            self._task = None
 
     async def handle_events(self):
         async for event in self.device.async_read_loop():

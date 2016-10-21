@@ -27,6 +27,7 @@
 
 import logging
 import asyncio
+import signal
 import sys
 
 from configparser import ConfigParser, ExtendedInterpolation
@@ -45,6 +46,12 @@ async def play_intro(player):
             player.note_on(10, note, 127)
         await asyncio.sleep(0.2)
 
+def setup_signals(loop):
+    def handler(signum, frame):
+        loop.call_soon_threadsafe(loop.stop)
+    signal.signal(signal.SIGINT, handler)
+    signal.signal(signal.SIGTERM, handler)
+
 def main():
     logging.basicConfig(level=logging.DEBUG)
     config = ConfigParser(interpolation=ExtendedInterpolation())
@@ -54,6 +61,7 @@ def main():
     config.read("badumtss.conf")
 
     loop = asyncio.get_event_loop()
+    setup_signals(loop)
 
     player = player_factory(config, loop)
     if not player:
@@ -62,17 +70,20 @@ def main():
 
     input_devices = list(input_devices_generator(config, loop, player))
 
-    player.open()
+    player.start()
     try:
         loop.run_until_complete(play_intro(player))
         if not input_devices:
             logger.error("No input device found, exiting")
             return
         for input_device in input_devices:
-            asyncio.ensure_future(input_device.handle_events())
+            input_device.start()
         loop.run_forever()
     finally:
-        player.close()
+        for input_device in input_devices:
+            input_device.stop()
+        player.stop()
+        loop.close()
 
 if __name__ == "__main__":
     main()

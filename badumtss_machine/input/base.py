@@ -73,5 +73,10 @@ class BaseInputDevice(object):
         self.config_section = section
         self.player = player
 
-    async def handle_events(self):
+    def start(self):
+        """Start processing events."""
+        raise NotImplementedError
+
+    def stop(self):
+        """Stop processing events."""
         raise NotImplementedError

@@ -30,11 +30,11 @@ class Player(object):
     def __init__(self, config, section, main_loop):
         self.main_loop = main_loop
 
-    def open(self):
+    def start(self):
         """Prepare the synthesizer for MIDI event processing."""
         pass
 
-    def close(self):
+    def stop(self):
         """Shut down the synthesizer after MIDI event processing."""
         pass
 
