@@ -37,20 +37,30 @@ from configparser import ConfigParser, ExtendedInterpolation
 
 from .players import player_factory
 from .input import input_devices_generator
+from . import midi
 
 logger = logging.getLogger()
 
 DEFAULT_LOGGING_CONFIG = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "logging.conf"))
 
-INTRO_NOTES = [38, 38, 0, 49]
+INTRO_NOTES = [0, 38, 38, 0, 49]
 
 async def play_intro(player):
     for note in INTRO_NOTES:
         sys.stdout.flush()
         if note:
-            player.note_on(10, note, 127)
+            msg = midi.NoteOn(10, note, 127)
+            player.handle_message(msg)
         await asyncio.sleep(0.2)
+
+async def route_messages(input_device, player):
+    async for msg in input_device:
+        logger.debug("msg: %r", msg)
+        if isinstance(msg, midi.MidiMessage):
+            player.handle_message(msg)
+        else:
+            logger.warning("Unknown input: %r", msg)
 
 def command_args():
     parser = argparse.ArgumentParser(
@@ -96,9 +106,8 @@ def main():
 
     input_devices = list(input_devices_generator(config,
                                                  loop,
-                                                 player,
                                                  section=args.input_device))
-
+    routers = []
     player.start()
     try:
         loop.run_until_complete(play_intro(player))
@@ -106,11 +115,19 @@ def main():
             logger.error("No input device found, exiting")
             return
         for input_device in input_devices:
+            router = loop.create_task(route_messages(input_device, player))
+            routers.append(router)
             input_device.start()
         loop.run_forever()
     finally:
         for input_device in input_devices:
             input_device.stop()
+        for router in routers:
+            router.cancel()
+            try:
+                loop.run_until_complete(router)
+            except asyncio.CancelledError:
+                pass
         player.stop()
         loop.close()
 

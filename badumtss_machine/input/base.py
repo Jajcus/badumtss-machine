@@ -25,6 +25,8 @@
 
 import logging
 
+from .. import midi
+
 logger = logging.getLogger("input.base")
 
 class InputDeviceError(Exception):
@@ -40,11 +42,10 @@ class UnknownDeviceTypeError(InputDeviceLoadError):
     pass
 
 class EventHandler(object):
-    """Process input events passing them to the MIDI player."""
-    def __init__(self, device, key, settings, player):
+    """Process input events and translate them to MIDI or control messages."""
+    def __init__(self, device, key, settings):
         self._device = device
         self._settings = settings
-        self._player = player
 
     def get_velocity(self):
         """Return velocity for current event."""
@@ -58,37 +59,43 @@ class EventHandler(object):
         """
         raise NotImplementedError
 
-    def play(self, event):
-        """Process event and pass it to the MIDI player as appropriate.
+    def translate(self, event):
+        """Process event and and translate it to a MIDI or control message as
+        appropriate.
 
         The `event` is an opaque object to be interpreted by classes derived
         from EventHandler.
         """
         interpret_event = self.interpret_event(event)
         if interpret_event == "ignore":
-            return
+            return None
         if "note" in self._settings:
             note = int(self._settings["note"])
             channel = int(self._settings.get("channel", 1))
             velocity = self.get_velocity()
             if interpret_event == "on":
                 logger.debug("  note on: %r, %r, %r", channel, note, velocity)
-                self._player.note_on(channel, note, velocity)
+                return midi.NoteOn(channel, note, velocity)
             elif interpret_event == "off":
                 logger.debug("  note off: %r, %r, %r", channel, note, velocity)
-                self._player.note_off(channel, note, velocity)
+                return midi.NoteOff(channel, note, velocity)
+        else:
+            return None
 
 class BaseInputDevice(object):
-    def __init__(self, config, section, main_loop, player):
+    def __init__(self, config, section, main_loop):
         self.main_loop = main_loop
         self.config = config
         self.config_section = section
-        self.player = player
 
     def start(self):
-        """Start processing events."""
-        raise NotImplementedError
+        """Prepare device for processing events."""
+        pass
 
     def stop(self):
-        """Stop processing events."""
+        """Stop processing events and emitting messages."""
+        pass
+
+    async def __aiter__(self):
+        """Generate MIDI or controll messages."""
         raise NotImplementedError

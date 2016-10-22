@@ -46,8 +46,8 @@ class KeyEventHandler(EventHandler):
             return "ignore"
 
 class AbsEventHandler(EventHandler):
-    def __init__(self, device, key, settings, player):
-        super().__init__(device, key, settings, player)
+    def __init__(self, device, key, settings):
+        super().__init__(device, key, settings)
         self._last_value = None
         self._last_value_ts = None
         self._min = None
@@ -137,9 +137,9 @@ class AbsEventHandler(EventHandler):
         return result
 
 class EventDevice(BaseInputDevice):
-    def __init__(self, config, section, main_loop, player, device):
-        self._task = None
-        BaseInputDevice.__init__(self, config, section, main_loop, player)
+    def __init__(self, config, section, main_loop, device):
+        self._done = False
+        BaseInputDevice.__init__(self, config, section, main_loop)
         self.device = device
         self._event_map = {}
         self._load_handlers()
@@ -171,37 +171,31 @@ class EventDevice(BaseInputDevice):
             key = (ev_type, ecode)
             settings = dict(defaults)
             settings.update(self.config[section])
-            handler = handler_class(self, key, settings, self.player)
+            handler = handler_class(self, key, settings)
             self._event_map[key] = handler
-
-    def start(self):
-        """Start processing events."""
-        self._task = self.main_loop.create_task(self.handle_events())
 
     def stop(self):
         """Stop processing events."""
-        if self._task is None:
-            return
-        try:
-            self.device.close()
-            self._task.cancel()
-            try:
-                self.main_loop.run_until_complete(self._task)
-            except asyncio.CancelledError:
-                pass
-        finally:
-            self._task = None
+        self._done = True
+        self.device.close()
 
-    async def handle_events(self):
+    async def __aiter__(self):
+        return self
+
+    async def __anext__(self):
         async for event in self.device.async_read_loop():
+            if self._done:
+                raise StopAsyncIteration
             ev_type = event.type
             ev_code = event.code
             event = evdev.categorize(event)
             handler = self._event_map.get((ev_type, ev_code))
             if handler:
-                handler.play(event)
+                msg = handler.translate(event)
+                if msg is not None:
+                    return msg
 
-def event_device_factory(config, section, main_loop, player):
+def event_device_factory(config, section, main_loop):
     try:
         name = config[section]["name"]
     except KeyError:
@@ -214,7 +208,7 @@ def event_device_factory(config, section, main_loop, player):
         return
     for device in devices:
         try:
-            handler = EventDevice(config, section, main_loop, player, device)
+            handler = EventDevice(config, section, main_loop, device)
         except Exception as err:
             logger.warning("[%s]: cannot load event device: %s", section, err)
             logger.debug("Exception:", exc_info=True)

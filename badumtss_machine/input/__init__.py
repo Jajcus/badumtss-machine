@@ -31,7 +31,7 @@ from .base import InputDeviceLoadError, UnknownDeviceTypeError
 
 logger = logging.getLogger("input")
 
-def input_devices_generator_single(config, section, loop, player):
+def input_devices_generator_single(config, section, loop):
     """Create input device handlers from a single configuration section.
 
     Yield created objects.
@@ -54,20 +54,19 @@ def input_devices_generator_single(config, section, loop, player):
             raise InputDeviceLoadError(
                     "[{}]: cannot load event device handler: {}"
                     .format(section, err))
-        yield from event_device_factory(config, section, loop, player)
+        yield from event_device_factory(config, section, loop)
     else:
         raise UnknownDeviceTypeError("[{}]: not a known input device config"
                                      .format(section))
 
-def input_devices_generator(config, loop, player, section=None):
+def input_devices_generator(config, loop, section=None):
     """Create input device handlers from configuration, yield created objects.
     """
     if section:
         try:
             yield from input_devices_generator_single(config,
                                                       section,
-                                                      loop,
-                                                      player)
+                                                      loop)
         except InputDeviceLoadError as err:
             logger.info("%s", err)
             return
@@ -77,8 +76,7 @@ def input_devices_generator(config, loop, player, section=None):
         try:
             yield from input_devices_generator_single(config,
                                                       section,
-                                                      loop,
-                                                      player)
+                                                      loop)
         except UnknownDeviceTypeError:
             continue
         except InputDeviceLoadError as err:

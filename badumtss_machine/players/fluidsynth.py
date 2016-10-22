@@ -34,6 +34,7 @@ import re
 import signal
 
 from .base import Player, PlayerLoadError
+from .. import midi
 
 logger = logging.getLogger("players.fluidsynth")
 fs_logger = logging.getLogger("players.fluidsynth.fluidsynth")
@@ -121,10 +122,13 @@ class FluidSynthPlayer(Player):
         command = command.encode(self._encoding, "replace")
         self._subprocess.stdin.write(command)
 
-    def note_on(self, channel, note, velocity):
-        """Process the 'note on' MIDI event."""
-        self._send("noteon {} {} {}\n".format(channel - 1, note, velocity))
-
-    def note_off(self, channel, note, velocity):
-        """Process the 'note off' MIDI event."""
-        self._send("noteoff {} {} {}\n".format(channel - 1, note, velocity))
+    def handle_message(self, msg):
+        """Handle MIDI or control message."""
+        if isinstance(msg, midi.NoteOn):
+            self._send("noteon {} {} {}\n"
+                       .format(msg.channel - 1, msg.note, msg.velocity))
+        elif isinstance(msg, midi.NoteOff):
+            self._send("noteoff {} {} {}\n"
+                       .format(msg.channel - 1, msg.note, msg.velocity))
+        else:
+            logger.debug("Unsupported message: %r", msg)

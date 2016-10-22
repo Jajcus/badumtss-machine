@@ -23,40 +23,32 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Common MIDI player code."""
+"""Midi messages abstraction."""
 
-class PlayerError(Exception):
-    """Raised on a player error."""
+from abc import ABCMeta
+from collections import namedtuple
 
-class PlayerLoadError(Exception):
-    """Raised when player cannot be loaded."""
-
-class UnknownPlayerTypeError(Exception):
-    """Raised when a config section does not describe a known player type."""
-
-class Player(object):
-    """Base class for all MIDI players."""
-    def __init__(self, config, section, main_loop):
-        self.main_loop = main_loop
-
-    def start(self):
-        """Prepare the synthesizer for MIDI event processing."""
-        pass
-
-    def stop(self):
-        """Shut down the synthesizer after MIDI event processing."""
-        pass
-
-    def handle_message(self, msg):
-        """Handle MIDI or control message."""
+class MidiMessage(metaclass=ABCMeta):
+    __slots__ = ()
+    def get_bytes(self):
         raise NotImplementedError
 
-class RawMidiPlayer(Player):
-    """Base class for players that use raw MIDI messages."""
-    def send(self, midi_bytes):
-        """Send a MIDI message to the synthesizer."""
-        raise NotImplementedError
+@MidiMessage.register
+class NoteOn(namedtuple("NoteOn", "channel note velocity")):
+    __slots__ = ()
+    def get_bytes(self):
+        return bytes([
+                      0x90 | ((self.channel - 1) & 0x0f),
+                      self.note & 0x7f,
+                      self.velocity & 0x7f
+                      ])
 
-    def handle_message(self, msg):
-        """Handle MIDI or control message."""
-        self.send(msg.get_bytes())
+@MidiMessage.register
+class NoteOff(namedtuple("NoteOff", "channel note velocity")):
+    __slots__ = ()
+    def get_bytes(self):
+        return bytes([
+                      0x80 | ((self.channel - 1) & 0x0f),
+                      self.note & 0x7f,
+                      self.velocity & 0x7f
+                      ])
