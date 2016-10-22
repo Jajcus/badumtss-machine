@@ -55,6 +55,14 @@ def input_devices_generator_single(config, section, loop):
                     "[{}]: cannot load event device handler: {}"
                     .format(section, err))
         yield from event_device_factory(config, section, loop)
+    elif dev_type == "terminal":
+        try:
+            from .terminal import terminal_device_factory
+        except ImportError as err:
+            raise InputDeviceLoadError(
+                    "[{}]: cannot load terminal input handler: {}"
+                    .format(section, err))
+        yield terminal_device_factory(config, section, loop)
     else:
         raise UnknownDeviceTypeError("[{}]: not a known input device config"
                                      .format(section))
