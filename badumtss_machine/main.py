@@ -52,12 +52,6 @@ async def play_intro(player):
             player.note_on(10, note, 127)
         await asyncio.sleep(0.2)
 
-def setup_signals(loop):
-    def handler(signum, frame):
-        loop.call_soon_threadsafe(loop.stop)
-    signal.signal(signal.SIGINT, handler)
-    signal.signal(signal.SIGTERM, handler)
-
 def command_args():
     parser = argparse.ArgumentParser(
             description="Play MIDI notes with any input device",
@@ -91,7 +85,9 @@ def main():
     config.read("badumtss.conf")
 
     loop = asyncio.get_event_loop()
-    setup_signals(loop)
+
+    loop.add_signal_handler(signal.SIGINT, loop.stop)
+    loop.add_signal_handler(signal.SIGTERM, loop.stop)
 
     player = player_factory(config, loop, section=args.player)
     if not player:
