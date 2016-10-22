@@ -24,6 +24,9 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import logging
+import os
+
+from configparser import ConfigParser, ExtendedInterpolation
 
 from .. import midi
 
@@ -49,7 +52,7 @@ class EventHandler(object):
 
     def get_velocity(self):
         """Return velocity for current event."""
-        return int(self._settings.get("velocity", 127))
+        return int(self._settings["velocity"])
 
     def interpret_event(self, event):
         """Intepret input event.
@@ -71,7 +74,7 @@ class EventHandler(object):
             return None
         if "note" in self._settings:
             note = int(self._settings["note"])
-            channel = int(self._settings.get("channel", 1))
+            channel = int(self._settings["channel"])
             velocity = self.get_velocity()
             if interpret_event == "on":
                 logger.debug("  note on: %r, %r, %r", channel, note, velocity)
@@ -83,10 +86,33 @@ class EventHandler(object):
             return None
 
 class BaseInputDevice(object):
+    KEYMAP_DEFAULTS = {
+            "channel": "1",
+            "velocity": "127",
+            }
     def __init__(self, config, section, main_loop):
         self.main_loop = main_loop
         self.config = config
         self.config_section = section
+        keymap_file = config[section].get("keymap", None)
+        self.keymap_config = ConfigParser(interpolation=ExtendedInterpolation(),
+                                          default_section="defaults")
+        self.set_keymap_defaults()
+        if keymap_file:
+            keymap_file = os.path.expanduser(keymap_file)
+            if not self.keymap_config.read(keymap_file):
+                logger.warning("Could not load keymap: %r", keymap_file)
+        self.load_keymap()
+
+    def set_keymap_defaults(self):
+        """Set keymap defaults."""
+        self.keymap_config["defaults"].update(self.KEYMAP_DEFAULTS)
+
+    def load_keymap(self):
+        """Process `self.keymap_config` ConfigParser object to build internal
+        input event to EventHandler object mapping.
+        """
+        raise NotImplementedError
 
     def start(self):
         """Prepare device for processing events."""

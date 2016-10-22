@@ -42,8 +42,8 @@ from . import midi
 
 logger = logging.getLogger()
 
-DEFAULT_LOGGING_CONFIG = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "logging.conf"))
+PKG_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_LOGGING_CONFIG = os.path.join(PKG_DIR, "logging.conf")
 
 INTRO_NOTES = [0, 38, 38, 0, 49]
 
@@ -90,10 +90,10 @@ def command_args():
 def main():
     locale.setlocale(locale.LC_ALL, '')
     args = command_args()
-    config = ConfigParser(interpolation=ExtendedInterpolation())
-    config['DEFAULT'] = {
-                         "input_device": ".*",
-                         }
+    config = ConfigParser(interpolation=ExtendedInterpolation(),
+                          default_section="defaults")
+    config.add_section("paths")
+    config["paths"] = { "pkgdir": PKG_DIR }
     config.read("badumtss.conf")
 
     loop = asyncio.get_event_loop()

@@ -139,17 +139,15 @@ class AbsEventHandler(EventHandler):
 class EventDevice(BaseInputDevice):
     def __init__(self, config, section, main_loop, device):
         self._done = False
-        BaseInputDevice.__init__(self, config, section, main_loop)
         self.device = device
         self._event_map = {}
-        self._load_handlers()
+        BaseInputDevice.__init__(self, config, section, main_loop)
 
-    def _load_handlers(self):
-        try:
-            defaults = self.config["defaults"]
-        except KeyError:
-            defaults = {}
-        for section in self.config:
+    def load_keymap(self):
+        """Process `self.keymap_config` ConfigParser object to build internal
+        input event to EventHandler object mapping.
+        """
+        for section in self.keymap_config:
             if section.startswith("KEY_") or section.startswith("BTN_"):
                 try:
                     ecode = evdev.ecodes.ecodes[section]
@@ -169,8 +167,7 @@ class EventDevice(BaseInputDevice):
             else:
                 continue
             key = (ev_type, ecode)
-            settings = dict(defaults)
-            settings.update(self.config[section])
+            settings = self.keymap_config[section]
             handler = handler_class(self, key, settings)
             self._event_map[key] = handler
 
