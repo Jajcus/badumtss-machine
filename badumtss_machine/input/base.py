@@ -27,6 +27,18 @@ import logging
 
 logger = logging.getLogger("input.base")
 
+class InputDeviceError(Exception):
+    """Raised on input device errors."""
+    pass
+
+class InputDeviceLoadError(InputDeviceError):
+    """Raised when input device handler cannot be loaded."""
+    pass
+
+class UnknownDeviceTypeError(InputDeviceLoadError):
+    """Raised when a config section does not describe a known input type."""
+    pass
+
 class EventHandler(object):
     """Process input events passing them to the MIDI player."""
     def __init__(self, device, key, settings, player):

@@ -26,7 +26,13 @@
 """Common MIDI player code."""
 
 class PlayerError(Exception):
-    """Raised on generic player error, e.g. when not available."""
+    """Raised on a player error."""
+
+class PlayerLoadError(Exception):
+    """Raised when player cannot be loaded."""
+
+class UnknownPlayerTypeError(Exception):
+    """Raised when a config section does not describe a known player type."""
 
 class Player(object):
     """Base class for all MIDI players."""

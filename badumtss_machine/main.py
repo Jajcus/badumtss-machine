@@ -71,6 +71,10 @@ def command_args():
     parser.add_argument("--logging-config", metavar="FILENAME", nargs=1,
                         default=DEFAULT_LOGGING_CONFIG,
                         help="Alternative logging configuration")
+    parser.add_argument("--player", "-p", metavar="SECTION",
+                        help="Select specific player from config file")
+    parser.add_argument("--input-device", "-i", metavar="SECTION",
+                        help="Select specific input configuration from config file")
     args = parser.parse_args()
     logging.config.fileConfig(args.logging_config,
                               disable_existing_loggers=False)
@@ -79,7 +83,7 @@ def command_args():
     return args
 
 def main():
-    command_args()
+    args = command_args()
     config = ConfigParser(interpolation=ExtendedInterpolation())
     config['DEFAULT'] = {
                          "input_device": ".*",
@@ -89,12 +93,15 @@ def main():
     loop = asyncio.get_event_loop()
     setup_signals(loop)
 
-    player = player_factory(config, loop)
+    player = player_factory(config, loop, section=args.player)
     if not player:
         logger.error("No MIDI player available.")
         return
 
-    input_devices = list(input_devices_generator(config, loop, player))
+    input_devices = list(input_devices_generator(config,
+                                                 loop,
+                                                 player,
+                                                 section=args.input_device))
 
     player.start()
     try:

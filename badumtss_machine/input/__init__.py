@@ -25,15 +25,65 @@
 
 """Input device interface."""
 
-def input_devices_generator(config, loop, player):
+import logging
+
+from .base import InputDeviceLoadError, UnknownDeviceTypeError
+
+logger = logging.getLogger("input")
+
+def input_devices_generator_single(config, section, loop, player):
+    """Create input device handlers from a single configuration section.
+
+    Yield created objects.
+
+    Raise InputDeviceLoadError if something goes wrong,
+    UnknownDeviceTypeError if the section does not describe a known device type.
+    """
+    if section not in config:
+        raise InputDeviceLoadError("No such config section: {!r}"
+                                   .format(section))
+
+    if ":" in section:
+        dev_type, dev_name = section.split(":", 1)
+    else:
+        dev_type, dev_name = section, "default"
+    if dev_type == "evdev":
+        try:
+            from .evdev import event_device_factory
+        except ImportError as err:
+            raise InputDeviceLoadError(
+                    "[{}]: cannot load event device handler: {}"
+                    .format(section, err))
+        yield from event_device_factory(config, section, loop, player)
+    else:
+        raise UnknownDeviceTypeError("[{}]: not a known input device config"
+                                     .format(section))
+
+def input_devices_generator(config, loop, player, section=None):
     """Create input device handlers from configuration, yield created objects.
     """
+    if section:
+        try:
+            yield from input_devices_generator_single(config,
+                                                      section,
+                                                      loop,
+                                                      player)
+        except InputDeviceLoadError as err:
+            logger.info("%s", err)
+            return
     for section in config:
-        if section.startswith("evdev:"):
-            try:
-                from .evdev import event_device_factory
-            except ImportError as err:
-                logger.warning("[%s]: cannot load event device handler: %s",
-                               section, err)
-                continue
-            yield from event_device_factory(config, section, loop, player)
+        if config[section].getboolean("disabled", False):
+            continue
+        try:
+            yield from input_devices_generator_single(config,
+                                                      section,
+                                                      loop,
+                                                      player)
+        except UnknownDeviceTypeError:
+            continue
+        except InputDeviceLoadError as err:
+            logger.info("%s", err)
+        except Exception as err:
+            logger.warning("[%s]: cannot load event device handler: %s",
+                           section, err)
+            logger.debug("Exception:", exc_info=True)

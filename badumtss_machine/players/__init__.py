@@ -27,41 +27,62 @@
 
 import logging
 
+from .base import PlayerLoadError, UnknownPlayerTypeError
+
 logger = logging.getLogger("players")
 
-def player_factory(config, loop):
+def player_factory_single(config, section, loop):
+    """Create MIDI player from a configuration section.
+
+    Raise PlayerLoadError if something goes wrong,
+    UnknownPlayerError if the section does not describe a known player type.
+    """
+    if section not in config:
+        raise PlayerLoadError("No such config section: {!r}".format(section))
+
+    if ":" in section:
+        player_type, player_name = section.split(":", 1)
+    else:
+        player_type, player_name = section, "default"
+    if player_type == "jack":
+        try:
+            from .jack import JackPlayer
+        except ImportError as err:
+            raise PlayerLoadError("[{}]: cannot load Jack player: {}"
+                                  .format(section, err))
+        return JackPlayer(config, section, loop)
+    elif player_type == "fluidsynth":
+        try:
+            from .fluidsynth import FluidSynthPlayer
+        except ImportError as err:
+            raise PlayerLoadError("[{}]: cannot load FluidSynth player: {}"
+                                  .format(section, err))
+        return FluidSynthPlayer(config, section, loop)
+    else:
+        raise UnknownPlayerTypeError("[{}]: not a known player config"
+                                     .format(section))
+
+def player_factory(config, loop, section=None):
     """Create MIDI players from configuration, return the first one successfuly
     created.
     """
+    if section:
+        try:
+            return player_factory_single(config, section, loop)
+        except PlayerLoadError as err:
+            logger.error("%s", err)
+            return None
     for section in config:
-        if section.startswith("jack:"):
-            try:
-                from .jack import JackPlayer
-            except ImportError as err:
-                logger.warning("[%s]: cannot load Jack Player: %s",
-                               section, err)
-                continue
-            try:
-                player = JackPlayer(config, section, loop)
-            except Exception as err:
-                logger.warning("[%s]: cannot load Jack Player: %s",
-                               section, err)
-                logger.debug("Exception:", exc_info=True)
-                continue
-            return player
-        if section.startswith("fluidsynth:"):
-            try:
-                from .fluidsynth import FluidSynthPlayer
-            except ImportError as err:
-                logger.warning("[%s]: cannot load FluidSynth player: %s",
-                               section, err)
-                continue
-            try:
-                player = FluidSynthPlayer(config, section, loop)
-            except Exception as err:
-                logger.warning("[%s]: cannot load FluidSynth player: %s",
-                               section, err)
-                logger.debug("Exception:", exc_info=True)
-                continue
-            return player
+        if config[section].getboolean("disabled", False):
+            continue
+        try:
+            return player_factory_single(config, section, loop)
+        except UnknownPlayerTypeError:
+            continue
+        except PlayerLoadError as err:
+            logger.info("%s", err)
+        except Exception as err:
+            logger.warning("[%s]: cannot load event device handler: %s",
+                           section, err)
+            logger.debug("Exception:", exc_info=True)
     return None

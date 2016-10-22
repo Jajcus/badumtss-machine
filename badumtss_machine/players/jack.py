@@ -33,7 +33,7 @@ from queue import Queue, Empty
 
 import jack
 
-from .base import RawMidiPlayer
+from .base import RawMidiPlayer, PlayerLoadError
 
 logger = logging.getLogger("players.jack")
 jack_logger = logging.getLogger("players.jack.jackd")
@@ -53,10 +53,15 @@ class JackPlayer(RawMidiPlayer):
         start_server = config[section].getboolean("start_server", False)
         self._active = 0
         self._queue = Queue()
+        jack.set_error_function(partial(jack_logger.debug, "%s"))
+        jack.set_info_function(partial(jack_logger.debug, "%s"))
+        try:
+            self._client = jack.Client("Badum-tss machine",
+                                       no_start_server=not start_server)
+        except jack.JackError as err:
+            raise PlayerLoadError("Could not connect to Jack: {}".format(err))
         jack.set_error_function(partial(jack_logger.error, "%s"))
         jack.set_info_function(partial(jack_logger.info, "%s"))
-        self._client = jack.Client("Badum-tss machine",
-                                   no_start_server=not start_server)
         self._client.set_shutdown_callback(self._shutdown)
         self._client.set_port_registration_callback(self._port_registration)
         self._client.set_port_rename_callback(self._port_rename)

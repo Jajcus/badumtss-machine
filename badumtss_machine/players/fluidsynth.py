@@ -32,7 +32,7 @@ import os
 import re
 import signal
 
-from .base import Player, PlayerError
+from .base import Player, PlayerLoadError
 
 logger = logging.getLogger("players.fluidsynth")
 fs_logger = logging.getLogger("players.fluidsynth.fluidsynth")
@@ -52,9 +52,9 @@ class FluidSynthPlayer(Player):
         try:
             self._soundfont = config[section]["soundfont"]
         except KeyError:
-            raise PlayerError("SoundFont not provided")
+            raise PlayerLoadError("SoundFont not provided")
         if not os.path.exists(self._soundfont):
-            raise PlayerError("SoundFont file %r does not exist",
+            raise PlayerLoadError("SoundFont file %r does not exist",
                               self._soundfont)
         command = self._command.split()
         command.append("-n")
