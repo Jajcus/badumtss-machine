@@ -27,6 +27,7 @@
 
 import asyncio
 import asyncio.subprocess
+import locale
 import logging
 import os
 import re
@@ -43,6 +44,7 @@ class FluidSynthPlayer(Player):
     Sends MIDI notes to a FluidSynth process.
     """
     def __init__(self, config, section, main_loop):
+        self._encoding = locale.getpreferredencoding()
         self._subprocess = None
         self._supervisor = None
         super().__init__(config, section, main_loop)
@@ -88,7 +90,7 @@ class FluidSynthPlayer(Player):
                 line = await self._subprocess.stderr.readline()
                 if not line:
                     break
-                fs_logger.warning(line.rstrip())
+                fs_logger.info(line.rstrip().decode(self._encoding, "replace"))
             rc = await self._subprocess.wait()
             if rc > 0:
                 logger.warning("%r exitted with status %r", self._command, rc)
@@ -116,7 +118,7 @@ class FluidSynthPlayer(Player):
         """Send command to fluidsynth."""
         if not self._subprocess:
             return
-        command = command.encode("utf-8", "replace")
+        command = command.encode(self._encoding, "replace")
         self._subprocess.stdin.write(command)
 
     def note_on(self, channel, note, velocity):
