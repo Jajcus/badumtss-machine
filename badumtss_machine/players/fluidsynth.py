@@ -94,7 +94,7 @@ class FluidSynthPlayer(Player):
             rc = await self._subprocess.wait()
             if rc > 0:
                 logger.warning("%r exitted with status %r", self._command, rc)
-            elif rc < 0 and rc != -signal.SIGTERM:
+            elif rc < 0 and rc not in (-signal.SIGTERM, -signal.SIGINT):
                 logger.warning("%r killed by signal %r", self._command, -rc)
         finally:
             self._subprocess = None
