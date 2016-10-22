@@ -45,7 +45,7 @@ class FluidSynthPlayer(Player):
     Sends MIDI notes to a FluidSynth process.
     """
     def __init__(self, config, section, main_loop):
-        self._encoding = locale.getpreferredencoding()
+        self._encoding = locale.getpreferredencoding(False)
         self._subprocess = None
         self._supervisor = None
         super().__init__(config, section, main_loop)

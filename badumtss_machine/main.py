@@ -27,6 +27,7 @@
 
 import argparse
 import asyncio
+import locale
 import logging
 import logging.config
 import os
@@ -87,6 +88,7 @@ def command_args():
     return args
 
 def main():
+    locale.setlocale(locale.LC_ALL, '')
     args = command_args()
     config = ConfigParser(interpolation=ExtendedInterpolation())
     config['DEFAULT'] = {
