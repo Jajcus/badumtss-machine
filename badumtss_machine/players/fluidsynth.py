@@ -91,7 +91,7 @@ class FluidSynthPlayer(Player):
                 line = await self._subprocess.stderr.readline()
                 if not line:
                     break
-                fs_logger.info(line.rstrip().decode(self._encoding, "replace"))
+                fs_logger.debug(line.rstrip().decode(self._encoding, "replace"))
             rc = await self._subprocess.wait()
             if rc > 0:
                 logger.warning("%r exitted with status %r", self._command, rc)
