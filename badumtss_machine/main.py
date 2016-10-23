@@ -38,6 +38,7 @@ from configparser import ConfigParser, ExtendedInterpolation
 
 from .players import player_factory
 from .input import input_devices_generator
+from .wizard import keymap_wizard
 from . import midi
 
 logger = logging.getLogger()
@@ -80,6 +81,9 @@ def command_args():
                         help="Select specific player from config file")
     parser.add_argument("--input-device", "-i", metavar="SECTION",
                         help="Select specific input configuration from config file")
+    parser.add_argument("--keymap-wizard", "-w", metavar="KEYMAP_FILENAME",
+                        nargs="?", const="newkeymap.conf",
+                        help="Interactive keymap configurator")
     args = parser.parse_args()
     logging.config.fileConfig(args.logging_config,
                               disable_existing_loggers=False)
@@ -87,30 +91,9 @@ def command_args():
         logging.getLogger().setLevel(args.log_level)
     return args
 
-def main():
-    locale.setlocale(locale.LC_ALL, '')
-    args = command_args()
-    config = ConfigParser(interpolation=ExtendedInterpolation(),
-                          default_section="defaults")
-    config.add_section("paths")
-    config["paths"] = { "pkgdir": PKG_DIR }
-    config.read("badumtss.conf")
-
-    loop = asyncio.get_event_loop()
-
-    loop.add_signal_handler(signal.SIGINT, loop.stop)
-    loop.add_signal_handler(signal.SIGTERM, loop.stop)
-
-    player = player_factory(config, loop, section=args.player)
-    if not player:
-        logger.error("No MIDI player available.")
-        return
-
-    input_devices = list(input_devices_generator(config,
-                                                 loop,
-                                                 section=args.input_device))
+def play_input(args, loop, input_devices, player):
+    """Play incoming input on the MIDI player."""
     routers = []
-    player.start()
     try:
         loop.run_until_complete(play_intro(player))
         if not input_devices:
@@ -122,15 +105,47 @@ def main():
             input_device.start()
         loop.run_forever()
     finally:
-        for input_device in input_devices:
-            input_device.stop()
         for router in routers:
             router.cancel()
             try:
                 loop.run_until_complete(router)
             except asyncio.CancelledError:
                 pass
-        player.stop()
+
+def main():
+    locale.setlocale(locale.LC_ALL, '')
+    args = command_args()
+    config = ConfigParser(interpolation=ExtendedInterpolation(),
+                          default_section="defaults")
+    config.add_section("paths")
+    config["paths"] = { "pkgdir": PKG_DIR }
+    config.read("badumtss.conf")
+
+    loop = asyncio.get_event_loop()
+    try:
+        loop.add_signal_handler(signal.SIGINT, loop.stop)
+        loop.add_signal_handler(signal.SIGTERM, loop.stop)
+
+        player = player_factory(config, loop, section=args.player)
+        if not player:
+            logger.error("No MIDI player available.")
+            if not args.keymap_wizard:
+                return
+
+        input_devices = list(input_devices_generator(config,
+                                                     loop,
+                                                     section=args.input_device))
+        player.start()
+        try:
+            if args.keymap_wizard:
+                keymap_wizard(args, loop, input_devices, player)
+            else:
+                play_input(args, loop, input_devices, player)
+        finally:
+            for input_device in input_devices:
+                input_device.stop()
+            player.stop()
+    finally:
         loop.close()
 
 if __name__ == "__main__":

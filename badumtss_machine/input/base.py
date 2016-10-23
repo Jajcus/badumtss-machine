@@ -90,6 +90,7 @@ class BaseInputDevice(object):
             "channel": "1",
             "velocity": "127",
             }
+    name = "unknown"
     def __init__(self, config, section, main_loop):
         self.main_loop = main_loop
         self.config = config
@@ -121,6 +122,10 @@ class BaseInputDevice(object):
     def stop(self):
         """Stop processing events and emitting messages."""
         pass
+
+    async def get_key(self):
+        """Read single keypress from the device."""
+        raise NotImplementedError
 
     async def __aiter__(self):
         """Generate MIDI or controll messages."""

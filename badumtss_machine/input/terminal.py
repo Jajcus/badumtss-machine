@@ -39,16 +39,21 @@ class CursesKeyHandler(EventHandler):
         return "on"
 
 class TerminalDevice(BaseInputDevice):
+    name = "Terminal"
     def __init__(self, config, section, main_loop):
         self._done = False
         self._stdscr = None
         self._queue = asyncio.Queue()
         self._event_map = {}
+        self._saved_tc_attrs = None
+        self._curses_tc_attrs = None
         BaseInputDevice.__init__(self, config, section, main_loop)
 
     def __del__(self):
         if not self._done:
             self.stop()
+        if self._stdscr:
+            self._finalize_terminal()
 
     def load_keymap(self):
         """Process `self.keymap_config` ConfigParser object to build internal
@@ -66,13 +71,13 @@ class TerminalDevice(BaseInputDevice):
             self._event_map[key] = handler
         logger.debug("event map: %r", self._event_map)
 
-    def start(self):
-        """Start terminal input."""
+    def _initialize_terminal(self):
+        """Initialize curses terminal."""
         logger.debug("initializing terminal...")
 
         # save current output flags
         stdin = sys.stdin.fileno()
-        oflag = termios.tcgetattr(stdin)[1]
+        self._saved_tc_attrs = termios.tcgetattr(stdin)
 
         # standard curses init
         self._stdscr = curses.initscr()
@@ -87,22 +92,52 @@ class TerminalDevice(BaseInputDevice):
 
         # undo terminal output settings changes made by curses
         attrs = termios.tcgetattr(stdin)
-        attrs[1] = oflag
+        attrs[1] = self._saved_tc_attrs[1]
         termios.tcsetattr(stdin, termios.TCSANOW, attrs)
+        self._curses_tc_attrs = attrs
 
+        self.main_loop.add_reader(stdin, self._reader)
+
+    def _finalize_terminal(self):
+        """Finalize curses terminal."""
+        if not self._stdscr:
+            return
+        curses.nocbreak()
+        curses.echo()
+        curses.endwin()
+        self._stdscr = None
+
+    def start(self):
+        """Start terminal input."""
+        self._initialize_terminal()
         self.main_loop.add_reader(sys.stdin.fileno(), self._reader)
+        self._done = False
 
     def stop(self):
         """Stop processing events."""
-        if self._done or not self._stdscr:
+        if self._done:
             return
         logger.debug("restoring terminal...")
         self._done = True
         self.main_loop.remove_reader(sys.stdin.fileno())
-        curses.nocbreak()
-        self._stdscr.keypad(False)
-        curses.echo()
-        curses.endwin()
+        self._finalize_terminal()
+
+    async def get_key(self):
+        """Read single keypress from the device."""
+        stdin = sys.stdin.fileno()
+        if not self._stdscr:
+            self._initialize_terminal()
+        else:
+            termios.tcsetattr(stdin, termios.TCSANOW, self._curses_tc_attrs)
+        self._done = False
+        self.main_loop.add_reader(stdin, self._reader)
+        try:
+            key = await self._queue.get()
+        finally:
+            termios.tcsetattr(stdin, termios.TCSANOW, self._saved_tc_attrs)
+            self._done = True
+            self.main_loop.remove_reader(stdin)
+        return key
 
     def _reader(self):
         """Handle terminal input."""

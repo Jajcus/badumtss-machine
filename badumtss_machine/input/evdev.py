@@ -140,6 +140,7 @@ class EventDevice(BaseInputDevice):
     def __init__(self, config, section, main_loop, device):
         self._done = False
         self.device = device
+        self.name = "{} ({})".format(device.name, device.fn)
         self._event_map = {}
         BaseInputDevice.__init__(self, config, section, main_loop)
 
@@ -191,6 +192,29 @@ class EventDevice(BaseInputDevice):
                 msg = handler.translate(event)
                 if msg is not None:
                     return msg
+    async def get_key(self):
+        """Read single keypress from the device."""
+        key_name = None
+        try:
+            # flush queued events
+            self.device.read()
+        except BlockingIOError:
+            pass
+        async for event in self.device.async_read_loop():
+            ev_type = event.type
+            ev_code = event.code
+            key_name = evdev.ecodes.bytype[ev_type].get(ev_code, str(ev_code))
+            if ev_type == EV_KEY:
+                key_event = evdev.events.KeyEvent(event)
+                if key_event.keystate != key_event.key_down:
+                    continue
+            else:
+                # FIXME: EV_ABS
+                continue
+            break
+        if isinstance(key_name, list):
+            key_name = key_name[0]
+        return key_name
 
 def event_device_factory(config, section, main_loop):
     try:
