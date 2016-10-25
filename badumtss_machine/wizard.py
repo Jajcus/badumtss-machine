@@ -285,17 +285,28 @@ class KeymapWizard:
     def _get_bindings(self):
         """Get list of current bindings."""
         full_preset = self.presets.get("Full")
+        defaults = self.keymap["defaults"]
         for name in sorted(self.keymap):
             if name == "defaults":
                 continue
             values = self.keymap[name]
             note = values.getint("note")
             if not note:
-                yield name, "", "unknown"
+                note_descr = "unknown"
             elif note in self.preset.notemap:
-                yield name, note, self.preset.notemap[note]
+                note_descr = self.preset.notemap[note]
             elif full_preset and note in full_preset.notemap:
-                yield name, note, full_preset.notemap[note]
+                note_descr = full_preset.notemap[note]
+            modifiers = []
+            for key, value in values.items():
+                if key in ("note",):
+                    continue
+                if value == defaults.get(key):
+                    continue
+                modifiers.append("{}={}".format(key, value))
+            if modifiers:
+                note_descr += " (" + ",".join(modifiers) + ")"
+            yield name, note, note_descr
 
     async def show_bindings(self):
         """Show current keymap."""
@@ -303,7 +314,10 @@ class KeymapWizard:
         if defaults:
             print()
             print("Global settings:")
-            self.print_table([(k, defaults[k]) for k in sorted(defaults)])
+            print()
+            for key in sorted(defaults):
+                value = defaults[key]
+                print(" {}={}".format(key, value))
             print()
         print("Bindings:")
         self.print_table(self._get_bindings())
@@ -417,7 +431,7 @@ class KeymapWizard:
             print()
             print("Selected device:", device.name)
             self.input_device = device
-            preset = await self.select_preset()
+            preset = await self.select_preset(initial=(not self.saved))
             if preset is None:
                 return
             print()
