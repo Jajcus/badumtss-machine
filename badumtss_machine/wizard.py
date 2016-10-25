@@ -142,7 +142,7 @@ class Preset:
             if note < 0 or note > 127:
                 continue
             notes[note] = pconfig[key]
-        for setting in ("channel", "program", "bank"):
+        for setting in ("channel", "program", "bank", "velocity"):
             if setting in pconfig:
                 settings[setting] = pconfig.getint(setting)
         return notes, settings
@@ -272,13 +272,15 @@ class KeymapWizard:
                   end="")
             sys.stdout.flush()
             self.line_input.pause()
-            key_name = await self.input_device.get_key()
-            print(" [{}]".format(key_name))
-            self.saved = False
-            if key_name not in self.keymap:
-                self.keymap.add_section(key_name)
-            self.keymap[key_name]["note"] = str(note)
-            self.line_input.resume()
+            try:
+                key_name = await self.input_device.get_key()
+                print(" [{}]".format(key_name))
+                self.saved = False
+                if key_name not in self.keymap:
+                    self.keymap.add_section(key_name)
+                self.keymap[key_name]["note"] = str(note)
+            finally:
+                self.line_input.resume()
 
     def _get_bindings(self):
         """Get list of current bindings."""
@@ -316,7 +318,32 @@ class KeymapWizard:
 
     async def bind_menu(self):
         """Bind menu"""
-        pass
+        notemap = self.preset.notemap
+        choice = [(note, notemap[note]) for note in sorted(notemap)]
+        ans = await self.select_item(choice, "Select note:")
+        if ans is None:
+            return
+        note, name = choice[ans]
+        print()
+        print("Press key for note {0:3}: {1} " .format(note, name), end="")
+        sys.stdout.flush()
+        self.line_input.pause()
+        try:
+            key_name = await self.input_device.get_key()
+            print(" [{}]".format(key_name))
+        finally:
+            self.line_input.resume()
+        self.saved = False
+        if key_name not in self.keymap:
+            self.keymap.add_section(key_name)
+        self.keymap[key_name]["note"] = str(note)
+        defaults = self.keymap["defaults"]
+        for setting in ("channel", "velocity"):
+            value = self.preset.settings.get(setting)
+            if value is None:
+                continue
+            if setting in defaults and defaults[setting] != str(value):
+                self.keymap[key_name][setting] = str(value)
 
     async def preset_menu(self):
         """Preset menu"""
@@ -350,7 +377,7 @@ class KeymapWizard:
             OPTIONS = [
                     "Show current bindings",
                     "Unbind key",
-                    "Change key binding",
+                    "Change/add binding",
                     "Change current preset",
                     "Save",
                     ]
