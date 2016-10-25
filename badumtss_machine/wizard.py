@@ -217,7 +217,10 @@ class KeymapWizard:
         while True:
             print()
             print(prompt)
-            self.print_table(enumerate(items, 1))
+            if items and isinstance(items[0], tuple):
+                self.print_table([(i,) + t for i, t in enumerate(items, 1)])
+            else:
+                self.print_table(enumerate(items, 1))
             print(" 0. Quit")
             print()
             answer = await self.ask("> ")
@@ -277,6 +280,21 @@ class KeymapWizard:
             self.keymap[key_name]["note"] = str(note)
             self.line_input.resume()
 
+    def _get_bindings(self):
+        """Get list of current bindings."""
+        full_preset = self.presets.get("Full")
+        for name in sorted(self.keymap):
+            if name == "defaults":
+                continue
+            values = self.keymap[name]
+            note = values.getint("note")
+            if not note:
+                yield name, "", "unknown"
+            elif note in self.preset.notemap:
+                yield name, note, self.preset.notemap[note]
+            elif full_preset and note in full_preset.notemap:
+                yield name, note, full_preset.notemap[note]
+
     async def show_bindings(self):
         """Show current keymap."""
         defaults = self.keymap["defaults"]
@@ -284,24 +302,17 @@ class KeymapWizard:
             print()
             print("Global settings:")
             self.print_table([(k, defaults[k]) for k in sorted(defaults)])
-        full_preset = self.presets.get("Full")
-        def items():
-            for name in sorted(self.keymap):
-                if name == "defaults":
-                    continue
-                values = self.keymap[name]
-                note = values.getint("note")
-                if not note:
-                    yield name, "", "unknown"
-                elif note in self.preset.notemap:
-                    yield name, "{:3}".format(note), self.preset.notemap[note]
-                elif full_preset and note in full_preset.notemap:
-                    yield name, "{:3}".format(note), full_preset.notemap[note]
-        self.print_table(items())
+            print()
+        print("Bindings:")
+        self.print_table(self._get_bindings())
 
     async def unbind_menu(self):
         """Unbind menu"""
-        pass
+        bindings = list(self._get_bindings())
+        ans = await self.select_item(bindings, "Select binding to remove:")
+        if ans is None:
+            return
+        del self.keymap[bindings[ans][0]]
 
     async def bind_menu(self):
         """Bind menu"""
