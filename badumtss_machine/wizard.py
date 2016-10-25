@@ -255,7 +255,7 @@ class KeymapWizard:
                     continue
             choice.append(preset)
         ans = await self.select_item([p.name for p in choice],
-                                     "Choose the presets:")
+                                     "Choose the preset:")
         if ans is None:
             return None
         else:
@@ -347,6 +347,12 @@ class KeymapWizard:
 
     async def preset_menu(self):
         """Preset menu"""
+        preset = await self.select_preset(initial=False)
+        if preset is None:
+            return
+        print()
+        print("Selected preset:", preset.name)
+        self.preset = preset
 
     async def save_menu(self):
         """Save menu"""
