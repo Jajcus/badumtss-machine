@@ -32,6 +32,7 @@ from collections import defaultdict
 from configparser import ConfigParser, ExtendedInterpolation
 
 from .input import input_devices_generator
+from . import midi
 
 logger = logging.getLogger("wizard")
 
@@ -179,6 +180,31 @@ class KeymapWizard:
             self.keymap.read([self.args.keymap_wizard])
             self.saved = True
 
+    def play_note(self, note):
+        """Play given note using current preset and keymap default settings."""
+        if not self.player:
+            return
+        try:
+            channel = self.preset.settings.get("channel")
+            if channel is None:
+                channel = self.keymap["defaults"].get("channel", 1)
+            channel = int(channel)
+        except ValueError:
+            channel = 1
+        if channel < 0 or channel > 15:
+            channel = 1
+        try:
+            velocity = self.preset.settings.get("velocity")
+            if velocity is None:
+                velocity = self.keymap["defaults"].get("velocity", 127)
+            velocity = int(velocity)
+        except ValueError:
+            velocity = 127
+        if velocity < 0 or velocity > 15:
+            velocity = 127
+        msg = midi.NoteOn(channel, note, velocity)
+        self.player.handle_message(msg)
+
     async def ask(self, prompt):
         print(prompt, end="")
         sys.stdout.flush()
@@ -279,6 +305,7 @@ class KeymapWizard:
                 if key_name not in self.keymap:
                     self.keymap.add_section(key_name)
                 self.keymap[key_name]["note"] = str(note)
+                self.play_note(note)
             finally:
                 self.line_input.resume()
 
@@ -348,6 +375,7 @@ class KeymapWizard:
         finally:
             self.line_input.resume()
         self.saved = False
+        self.play_note(note)
         if key_name not in self.keymap:
             self.keymap.add_section(key_name)
         self.keymap[key_name]["note"] = str(note)
