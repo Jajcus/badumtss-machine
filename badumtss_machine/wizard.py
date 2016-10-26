@@ -355,6 +355,10 @@ class KeymapWizard:
         for setting in ("channel", "velocity"):
             value = self.preset.settings.get(setting)
             if value is None:
+                try:
+                    del self.keymap[key_name][setting]
+                except KeyError:
+                    pass
                 continue
             if setting in defaults and defaults[setting] != str(value):
                 self.keymap[key_name][setting] = str(value)
