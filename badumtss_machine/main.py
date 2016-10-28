@@ -74,6 +74,8 @@ def command_args():
     parser.add_argument("--quiet", dest="log_level", action="store_const",
                         const=logging.ERROR,
                         help="Show only error messages")
+    parser.add_argument("--no-intro", "-n", action="store_true",
+                        help="Skip intro sound")
     parser.add_argument("--logging-config", metavar="FILENAME", nargs=1,
                         default=DEFAULT_LOGGING_CONFIG,
                         help="Alternative logging configuration")
@@ -95,7 +97,8 @@ def play_input(args, loop, input_devices, player):
     """Play incoming input on the MIDI player."""
     routers = []
     try:
-        loop.run_until_complete(play_intro(player))
+        if not args.no_intro:
+            loop.run_until_complete(play_intro(player))
         if not input_devices:
             logger.error("No input device found, exiting")
             return
