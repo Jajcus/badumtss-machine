@@ -7,9 +7,8 @@ Hero game can be used as electronic drums.
 
 It is also an excuse for me to play with MIDI APIs and Python asyncio framework.
 
-The code requires Python 3 and has been written for Linux only, as it relies on
-Linux-specific APIs. It should be possible to add support for other platforms,
-though.
+The code and has been written for Linux only, as it relies on Linux-specific
+APIs. It should be possible to add support for other platforms, though.
 
 It is a work in progress, with little prospect for sustained development. It
 might be fun, anyway.
@@ -17,19 +16,19 @@ might be fun, anyway.
 Requirements
 ------------
 
-* _Python 3.5
+* Python_ 3.5
 
 Input support:
 
-* _python-evdev for event devices (like game controllers)
+* python-evdev_ for event devices (like game controllers)
 
 Simple terminal input is implemented using the curses module from the standard
 Python library, but it should be considered a proof of concept only.
 
 Output support:
 
-* _JACK-Client Python package for output through a Jack MIDI port
-* _FluidSynth for play audio directly from the synthesizer
+* JACK-Client_ Python package for output through a Jack MIDI port
+* FluidSynth_ for play audio directly from the synthesizer
 
 Usage
 -----
