@@ -25,6 +25,7 @@
 
 import asyncio
 import logging
+import shutil
 import sys
 import os
 
@@ -211,7 +212,10 @@ class KeymapWizard:
         return await self.line_input.readline()
 
     def print_table(self, rows):
-        """Print table of items."""
+        """Print table of items.
+
+        If the table is longer than 2/3 of the terminal size, try to display
+        it in multiple columns."""
         print()
         rows = list(rows)
         widths = defaultdict(lambda: 0)
@@ -222,19 +226,43 @@ class KeymapWizard:
                     val_len = max(3, val_len + 1)
                 widths[i] = max(widths[i], val_len)
 
-        for row in rows:
-            for i, val in enumerate(row):
-                if i == 0:
-                    if isinstance(val, int):
-                        val = str(val) + "."
+        row_len = len(widths)
+        row_width = sum(widths.values()) + row_len - 1
+        term_size = shutil.get_terminal_size()
+        split_thold = max(term_size.lines * 2 // 3, 8)
+        columns = 1
+        row_count = len(rows)
+        table_row_count = row_count
+        while table_row_count > split_thold:
+            new_width = row_width * (columns + 1) + columns * 3
+            if new_width >= term_size.columns:
+                break
+            columns += 1
+            table_row_count = (row_count - 1) // columns + 1
+
+        new_height = (row_count - 1) // columns + 1
+        table_row_len = row_len * columns + (columns - 1) * 3
+        for i, j in enumerate(range(0, row_count, columns)):
+            row = rows[j]
+            if len(row) < row_len:
+                row += [""] * (row_len - len(row))
+            row_len = len(row)
+            for k in range(0, columns):
+                k1 = (row_len + 1) * k
+                if k > 0:
+                    print(end=" ")
+                for l, val in enumerate(row):
+                    if l == 0:
+                        if isinstance(val, int):
+                            val = str(val) + "."
+                        else:
+                            val = str(val)
+                        val = val.rjust(widths[l])
+                    elif isinstance(val, int):
+                        val = str(val).rjust(widths[l])
                     else:
-                        val = str(val)
-                    val = val.rjust(widths[i])
-                elif isinstance(val, int):
-                    val = str(val).rjust(widths[i])
-                else:
-                    val = str(val).ljust(widths[i])
-                print(val, end=" ")
+                        val = str(val).ljust(widths[l])
+                    print(val, end=" ")
             print()
         print()
 
