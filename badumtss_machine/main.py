@@ -37,7 +37,7 @@ import sys
 from configparser import ConfigParser, ExtendedInterpolation
 
 from .players import player_factory
-from .input import input_devices_generator
+from .input import input_devices_generator, probe_input_drivers
 from .wizard import keymap_wizard
 from . import midi
 
@@ -123,6 +123,8 @@ def main():
     config.add_section("paths")
     config["paths"] = { "pkgdir": PKG_DIR }
     config.read("badumtss.conf")
+
+    probe_input_drivers(config)
 
     loop = asyncio.get_event_loop()
     try:

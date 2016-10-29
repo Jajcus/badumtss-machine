@@ -27,9 +27,52 @@
 
 import logging
 
+from importlib import import_module
+
 from .base import InputDeviceLoadError, UnknownDeviceTypeError
 
 logger = logging.getLogger("input")
+
+DRIVERS = {"evdev", "terminal"}
+
+loaded_drivers = {}
+
+def probe_input_drivers(config):
+    """Import input driver modules and perform early initializations."""
+    for section in config:
+        if config[section].getboolean("disabled", False):
+            continue
+        if ":" in section:
+            driver_name = section.split(":", 1)[0]
+        else:
+            driver_name = section
+        if driver_name not in DRIVERS:
+            continue
+        if driver_name in loaded_drivers:
+            continue
+        try:
+            if "." not in driver_name:
+                module = import_module("." + driver_name, __package__)
+            else:
+                module = import_module(driver_name)
+        except ImportError as err:
+            logger.info("[%s]: could not load input driver: %s", section, err)
+            loaded_drivers[driver_name] = None
+            continue
+        if hasattr(module, "initialize_input_driver"):
+            try:
+                module.initialize_input_driver()
+            except InputDeviceLoadError as err:
+                logger.info("[%s]: could not initialize input driver: %s",
+                            section, err)
+                loaded_drivers[driver_name] = None
+                continue
+            except Exception:
+                logger.warning("[%s]: could not initialize input driver: %s",
+                               err, exc_info=True)
+                loaded_drivers[driver_name] = None
+                continue
+        loaded_drivers[driver_name] = module
 
 def input_devices_generator_single(config, section, loop):
     """Create input device handlers from a single configuration section.
@@ -44,28 +87,17 @@ def input_devices_generator_single(config, section, loop):
                                    .format(section))
 
     if ":" in section:
-        dev_type, dev_name = section.split(":", 1)
+        driver_name, dev_name = section.split(":", 1)
     else:
-        dev_type, dev_name = section, "default"
-    if dev_type == "evdev":
-        try:
-            from .evdev import event_device_factory
-        except ImportError as err:
-            raise InputDeviceLoadError(
-                    "[{}]: cannot load event device handler: {}"
-                    .format(section, err))
-        yield from event_device_factory(config, section, loop)
-    elif dev_type == "terminal":
-        try:
-            from .terminal import terminal_device_factory
-        except ImportError as err:
-            raise InputDeviceLoadError(
-                    "[{}]: cannot load terminal input handler: {}"
-                    .format(section, err))
-        yield terminal_device_factory(config, section, loop)
-    else:
+        driver_name, dev_name = section, "default"
+    if driver_name not in DRIVERS:
         raise UnknownDeviceTypeError("[{}]: not a known input device config"
                                      .format(section))
+    module = loaded_drivers.get(driver_name)
+    if not module:
+        raise InputDeviceLoadError("[{}]: coult load event device handler"
+                                   .format(section))
+    yield from module.input_device_factory(config, section, loop)
 
 def input_devices_generator(config, loop, section=None):
     """Create input device handlers from configuration, yield created objects.

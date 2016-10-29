@@ -173,7 +173,7 @@ class TerminalDevice(BaseInputDevice):
             else:
                 logger.debug("no handler for %r", key)
 
-def terminal_device_factory(config, section, main_loop):
+def input_device_factory(config, section, main_loop):
     if not os.isatty(sys.stdin.fileno()):
         raise InputDeviceLoadError("stdin is not a TTY")
-    return TerminalDevice(config, section, main_loop)
+    yield TerminalDevice(config, section, main_loop)

@@ -216,7 +216,7 @@ class EventDevice(BaseInputDevice):
             key_name = key_name[0]
         return key_name
 
-def event_device_factory(config, section, main_loop):
+def input_device_factory(config, section, main_loop):
     try:
         name = config[section]["name"]
     except KeyError:
