@@ -39,6 +39,7 @@ from configparser import ConfigParser, ExtendedInterpolation
 from .players import player_factory
 from .input import input_devices_generator, probe_input_drivers
 from .wizard import keymap_wizard
+from . import control
 from . import midi
 
 logger = logging.getLogger()
@@ -56,11 +57,13 @@ async def play_intro(player):
             player.handle_message(msg)
         await asyncio.sleep(0.2)
 
-async def route_messages(input_device, player):
+async def route_messages(loop, input_device, player):
     async for msg in input_device:
         logger.debug("msg: %r", msg)
         if isinstance(msg, midi.MidiMessage):
             player.handle_message(msg)
+        elif isinstance(msg, control.Quit):
+            loop.stop()
         else:
             logger.warning("Unknown input: %r", msg)
 
@@ -103,7 +106,9 @@ def play_input(args, loop, input_devices, player):
             logger.error("No input device found, exiting")
             return
         for input_device in input_devices:
-            router = loop.create_task(route_messages(input_device, player))
+            router = loop.create_task(route_messages(loop,
+                                                     input_device,
+                                                     player))
             routers.append(router)
             input_device.start()
         loop.run_forever()
