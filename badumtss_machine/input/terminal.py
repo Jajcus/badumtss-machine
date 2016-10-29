@@ -119,6 +119,7 @@ class TerminalDevice(BaseInputDevice):
             return
         logger.debug("restoring terminal...")
         self._done = True
+        self._queue.put_nowait(None)
         self.main_loop.remove_reader(sys.stdin.fileno())
         self._finalize_terminal()
 
@@ -158,11 +159,15 @@ class TerminalDevice(BaseInputDevice):
 
     async def __anext__(self):
         while True:
-            key = await self._queue.get()
+            try:
+                key = await self._queue.get()
+            except TypeError as err:
+                # happens on Ctrl-C under GLib event loop
+                logger.debug("Unexpected exception:", exc_info=True)
+                continue
             if self._done:
                 raise StopAsyncIteration
             if key is None:
-                logger.debug("no key?")
                 continue
             logger.debug("key: %r", key)
             handler = self._event_map.get(key)

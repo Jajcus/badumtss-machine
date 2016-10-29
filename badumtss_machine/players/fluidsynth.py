@@ -108,12 +108,8 @@ class FluidSynthPlayer(Player):
         """Stop fluidsynth."""
         if self._subprocess:
             self._subprocess.terminate()
-        if self._supervisor:
-            if not self.main_loop.is_closed():
-                self.main_loop.run_until_complete(self._supervisor)
-            self._supervisor = None
-        else:
-            self._subprocess = None
+        self._supervisor = None
+        self._subprocess = None
 
     def _send(self, command):
         """Send command to fluidsynth."""

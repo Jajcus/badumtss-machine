@@ -33,7 +33,7 @@ from .base import InputDeviceLoadError, UnknownDeviceTypeError
 
 logger = logging.getLogger("input")
 
-DRIVERS = {"evdev", "terminal"}
+DRIVERS = {"evdev", "terminal", "gtk"}
 
 loaded_drivers = {}
 
@@ -61,15 +61,15 @@ def probe_input_drivers(config):
             continue
         if hasattr(module, "initialize_input_driver"):
             try:
-                module.initialize_input_driver()
+                module.initialize_input_driver(config)
             except InputDeviceLoadError as err:
                 logger.info("[%s]: could not initialize input driver: %s",
                             section, err)
                 loaded_drivers[driver_name] = None
                 continue
-            except Exception:
+            except Exception as err:
                 logger.warning("[%s]: could not initialize input driver: %s",
-                               err, exc_info=True)
+                               section, err, exc_info=True)
                 loaded_drivers[driver_name] = None
                 continue
         loaded_drivers[driver_name] = module
