@@ -328,6 +328,8 @@ class KeymapWizard:
             self.line_input.pause()
             try:
                 key_name = await self.input_device.get_key()
+                if key_name is None:
+                    return
                 print(" [{}]".format(key_name))
                 self.saved = False
                 if key_name not in self.keymap:
@@ -399,6 +401,8 @@ class KeymapWizard:
         self.line_input.pause()
         try:
             key_name = await self.input_device.get_key()
+            if key_name is None:
+                return
             print(" [{}]".format(key_name))
         finally:
             self.line_input.resume()

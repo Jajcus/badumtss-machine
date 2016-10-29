@@ -39,6 +39,7 @@ except (AttributeError, ValueError) as err:
 from gi.repository import Gtk, Gdk, GLib
 
 from .base import EventHandler, BaseInputDevice
+from .. import control
 
 logger = logging.getLogger("input.gtk")
 
@@ -83,25 +84,30 @@ class GtkInputWindow(BaseInputDevice):
 
     def start(self):
         """Prepare device for processing events."""
+        if not self._window:
+            return
         for event in "key-press-event", "key-release-event":
             h_id = self._window.connect(event, self._key_event_handler)
             self._gtk_event_handlers[event] = h_id
+        self._done = False
 
     def stop(self):
         """Stop processing events."""
+        if not self._window:
+            return
         for event in "key-press-event", "key-release-event":
             h_id = self._gtk_event_handlers.pop(event, None)
             if h_id is not None:
                 self._window.disconnect(h_id)
         self._done = True
         self._queue.put_nowait(None)
+        self._queue = asyncio.Queue() # clear queue
 
     def _window_closed(self, window, event):
         self.stop()
-        if self._windows_opened > 0:
-            self._windows_opened -= 1
-        if not self._windows_opened:
-            self.main_loop.call_soon(self.main_loop.stop)
+        if GtkInputWindow._windows_opened > 0:
+            GtkInputWindow._windows_opened -= 1
+        self._window = None
 
     def _key_event_handler(self, window, gdk_event):
         keyval = gdk_event.keyval
@@ -126,6 +132,9 @@ class GtkInputWindow(BaseInputDevice):
         while True:
             event = await self._queue.get()
             if self._done:
+                if self._windows_opened == 0:
+                    self._windows_opened = None
+                    return control.Quit()
                 raise StopAsyncIteration
             if event is None:
                 continue
@@ -138,16 +147,27 @@ class GtkInputWindow(BaseInputDevice):
 
     async def get_key(self):
         """Read single keypress from the device."""
-        while True:
-            if not self._window:
-                return None
-            event = await self._queue.get()
-            if event is None:
-                continue
-            if isinstance(event, KeyEvent) and not event.on:
-                continue
-            break
-        return Gdk.keyval_name(key)
+        if not self._window:
+            return None
+        self._window.present()
+        self.start()
+        try:
+            while True:
+                logger.debug("key_key")
+                if not self._window:
+                    return None
+                event = await self._queue.get()
+                logger.debug("event: %r", event)
+                if event is None:
+                    continue
+                if isinstance(event, KeyEvent):
+                    if event.on:
+                        return Gdk.keyval_name(event.keyval)
+                    else:
+                        logger.debug("ignorning key release")
+                logger.debug("ignorning unknown event")
+        finally:
+            self.stop()
 
 def _sig_handler(signum):
     """Handle SIGIT in GLib loop."""
