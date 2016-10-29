@@ -243,11 +243,13 @@ class KeymapWizard:
         new_height = (row_count - 1) // columns + 1
         table_row_len = row_len * columns + (columns - 1) * 3
         for i, j in enumerate(range(0, row_count, columns)):
-            row = rows[j]
-            if len(row) < row_len:
-                row += [""] * (row_len - len(row))
-            row_len = len(row)
             for k in range(0, columns):
+                try:
+                    row = rows[j + k]
+                except IndexError:
+                    break
+                if len(row) < row_len:
+                    row += [""] * (row_len - len(row))
                 k1 = (row_len + 1) * k
                 if k > 0:
                     print(end=" ")
