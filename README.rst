@@ -3,7 +3,7 @@ Ba-Dum-Tss Machine
 
 Ba-Dum-Tss Machine is a little application that converts any Linux input device
 into a MIDI keyboard. It was created to see if toy percussion set from a Guitar
-Hero game can be used as electronic drums.
+Hero game can be used as electronic drums (it can, not this way).
 
 It is also an excuse for me to play with MIDI APIs and Python asyncio framework.
 
