@@ -21,6 +21,7 @@ Requirements
 Input support:
 
 * python-evdev_ for event devices (like game controllers)
+* `GTK+`_ 3, PyGObject_ 3 and pycairo_ for GTK+3 interface
 
 Simple terminal input is implemented using the curses module from the standard
 Python library, but it should be considered a proof of concept only.
@@ -65,3 +66,6 @@ file to be used.
 .. _python-evdev: https://pypi.python.org/pypi/evdev/
 .. _JACK-Client: https://pypi.python.org/pypi/JACK-Client/
 .. _FluidSynth: http://www.fluidsynth.org/
+.. _PyGObject: https://wiki.gnome.org/action/show/Projects/PyGObject
+.. _pycairo: https://www.cairographics.org/pycairo/
+.. _`GTK+`: http://www.gtk.org/

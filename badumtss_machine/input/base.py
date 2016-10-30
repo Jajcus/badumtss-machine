@@ -54,6 +54,12 @@ class EventHandler(object):
         """Return velocity for current event."""
         return int(self._settings["velocity"])
 
+    def get_note(self):
+        """Return note for current event.
+        
+        Used only when note is set to 'varies' in settings."""
+        return 0
+
     def interpret_event(self, event):
         """Intepret input event.
 
@@ -73,7 +79,11 @@ class EventHandler(object):
         if interpret_event == "ignore":
             return None
         if "note" in self._settings:
-            note = int(self._settings["note"])
+            note = self._settings["note"]
+            if note == "varies":
+                note = self.get_note()
+            else:
+                note = int(note)
             channel = int(self._settings["channel"])
             velocity = self.get_velocity()
             if interpret_event == "on":
