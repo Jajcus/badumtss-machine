@@ -24,7 +24,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import asyncio
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import logging
 import signal
 
@@ -100,6 +100,8 @@ class GtkInputWindow(BaseInputDevice):
         self._queue = asyncio.Queue()
         self._gtk_event_handlers = {}
         self._keys_pressed = set()
+        self._buttons_pressed = set()
+        self._notes_pressed = defaultdict(set)
         self._scroll_set = False
         self._kb_canvas = None
         BaseInputDevice.__init__(self, config, section, main_loop)
@@ -156,7 +158,9 @@ class GtkInputWindow(BaseInputDevice):
         vadj = swindow.get_hadjustment()
         vadj.connect("changed", self._configure_scrolling)
         self._kb_canvas.add_events(Gdk.EventMask.BUTTON_PRESS_MASK
-                                   | Gdk.EventMask.BUTTON_RELEASE_MASK)
+                                   | Gdk.EventMask.BUTTON_RELEASE_MASK
+                                   | Gdk.EventMask.LEAVE_NOTIFY_MASK
+                                   | Gdk.EventMask.POINTER_MOTION_MASK)
 
     def _configure_scrolling(self, vadj):
         if not self._scroll_set:
@@ -230,9 +234,18 @@ class GtkInputWindow(BaseInputDevice):
         for event in "key-press-event", "key-release-event":
             h_id = self._window.connect(event, self._key_event_handler)
             self._gtk_event_handlers[event] = h_id
-        for event in "button-press-event", "button-release-event":
-            h_id = self._kb_canvas.connect(event, self._mouse_event_handler)
-            self._gtk_event_handlers[event] = h_id
+        h_id = self._kb_canvas.connect("button-press-event",
+                                       self._button_press_event_handler)
+        self._gtk_event_handlers["button-press-event"] = h_id
+        h_id = self._kb_canvas.connect("button-release-event",
+                                       self._button_release_event_handler)
+        self._gtk_event_handlers["button-release-event"] = h_id
+        h_id = self._kb_canvas.connect("leave-notify-event",
+                                       self._leave_notify_event_handler)
+        self._gtk_event_handlers["leave-notify-event"] = h_id
+        h_id = self._kb_canvas.connect("motion-notify-event",
+                                       self._motion_notify_event_handler)
+        self._gtk_event_handlers["motion-notify-event"] = h_id
         self._done = False
 
     def stop(self):
@@ -243,7 +256,8 @@ class GtkInputWindow(BaseInputDevice):
             h_id = self._gtk_event_handlers.pop(event, None)
             if h_id is not None:
                 self._window.disconnect(h_id)
-        for event in "button-press-event", "button-release-event":
+        for event in ("button-press-event", "button-release-event",
+                        "leave-notify-event", "motion-notify-event"):
             h_id = self._gtk_event_handlers.pop(event, None)
             if h_id is not None:
                 self._kb_canvas.disconnect(h_id)
@@ -257,14 +271,51 @@ class GtkInputWindow(BaseInputDevice):
             GtkInputWindow._windows_opened -= 1
         self._window = None
 
-    def _mouse_event_handler(self, canvas, gdk_event):
-        pressed = (gdk_event.type == Gdk.EventType.BUTTON_PRESS)
+    def _pointer_to_note(self, gdk_event):
         pos = int(gdk_event.x * 4 / KEY_WIDTH)
         row = int(gdk_event.y > BLACK_KEY_LENGTH)
         octave = int(gdk_event.x / (KEY_WIDTH * 7))
-        note = 12 * octave + PIANOKEYS[row][pos % PIANOKEYS_LEN]
-        event = MouseClickEvent(key=note, on=pressed)
-        self._queue.put_nowait(event)
+        return 12 * octave + PIANOKEYS[row][pos % PIANOKEYS_LEN]
+
+    def _button_press_event_handler(self, canvas, gdk_event):
+        self._buttons_pressed.add(gdk_event.button)
+        note = self._pointer_to_note(gdk_event)
+        if note not in self._notes_pressed[gdk_event.button]:
+            self._notes_pressed[gdk_event.button].add(note)
+            event = MouseClickEvent(key=note, on=True)
+            self._queue.put_nowait(event)
+
+    def _button_release_event_handler(self, canvas, gdk_event):
+        self._buttons_pressed.discard(gdk_event.button)
+        notes = set(self._notes_pressed[gdk_event.button])
+        self._notes_pressed[gdk_event.button].clear()
+        for note in notes:
+            event = MouseClickEvent(key=note, on=False)
+            self._queue.put_nowait(event)
+
+    def _motion_notify_event_handler(self, canvas, gdk_event):
+        note = self._pointer_to_note(gdk_event)
+        for button in self._buttons_pressed:
+            for act_note in list(self._notes_pressed[button]):
+                if act_note != note:
+                    self._notes_pressed[button].clear()
+                    event = MouseClickEvent(key=act_note, on=False)
+                    self._queue.put_nowait(event)
+            if note not in self._notes_pressed[button]:
+                self._notes_pressed[button].add(note)
+                event = MouseClickEvent(key=note, on=True)
+                self._queue.put_nowait(event)
+
+    def _leave_notify_event_handler(self, canvas, gdk_event):
+        self._buttons_pressed.clear()
+        sets = self._notes_pressed.values()
+        if not sets:
+            return
+        notes = set.union(*sets)
+        self._notes_pressed.clear()
+        for note in notes:
+            event = MouseClickEvent(key=note, on=False)
+            self._queue.put_nowait(event)
 
     def _key_event_handler(self, window, gdk_event):
         keyval = gdk_event.keyval
@@ -300,10 +351,8 @@ class GtkInputWindow(BaseInputDevice):
                 key = (MouseClickEvent, None)
             else:
                 key = (type(event), event[0])
-            print("key:", repr(key))
             handler = self._event_map.get(key)
             if handler:
-                print("handler:", repr(handler))
                 msg = handler.translate(event)
                 if msg is not None:
                     return msg
